@@ -1,0 +1,72 @@
+"""Loads the starter catalogue into the database: `python -m app.seed`."""
+
+import json
+from datetime import date
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.db import SessionLocal
+from app.models import Product, ProductDetail, ProductImage, ProductSize, Review
+
+CATALOGUE_PATH = Path(__file__).resolve().parent.parent / "data" / "catalogue.json"
+
+
+def _build_product(data: dict, position: int) -> Product:
+    return Product(
+        id=data["id"],
+        slug=data["slug"],
+        style_id=data["style_id"],
+        name=data["name"],
+        gender=data["gender"],
+        category=data["category"],
+        colour=data["colour"],
+        price=data["price"],
+        compare_at_price=data["compare_at_price"],
+        is_new=data["is_new"],
+        is_best_seller=data["is_best_seller"],
+        description=data["description"],
+        position=position,
+        images=[ProductImage(url=url, position=i) for i, url in enumerate(data["images"])],
+        sizes=[ProductSize(label=label, position=i) for i, label in enumerate(data["sizes"])],
+        details=[ProductDetail(text=text, position=i) for i, text in enumerate(data["details"])],
+    )
+
+
+def load_catalogue(session: Session, path: Path = CATALOGUE_PATH) -> tuple[int, int]:
+    """Adds the products and reviews in the file that are not in the database yet.
+
+    Products that already exist are left alone, so edits and archiving done in the admin area
+    survive a second run (and products that have been ordered cannot be deleted anyway).
+    """
+    catalogue = json.loads(path.read_text())
+
+    for position, data in enumerate(catalogue["products"]):
+        if session.get(Product, data["id"]) is None:
+            session.add(_build_product(data, position))
+
+    for data in catalogue["reviews"]:
+        session.merge(
+            Review(
+                id=data["id"],
+                style_id=data["style_id"],
+                rating=data["rating"],
+                title=data["title"],
+                body=data["body"],
+                author=data["author"],
+                review_date=date.fromisoformat(data["date"]),
+            )
+        )
+
+    session.commit()
+    return len(catalogue["products"]), len(catalogue["reviews"])
+
+
+def main() -> None:
+    with SessionLocal() as session:
+        products, reviews = load_catalogue(session)
+    print(f"Seeded {products} products and {reviews} reviews.")
+
+
+if __name__ == "__main__":
+    main()
