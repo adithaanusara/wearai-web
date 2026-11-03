@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: wearai
       POSTGRES_DB: wearai
     ports:
-      - '5432:5432'
+      - '${DB_PORT:-5432}:5432'
     volumes:
       - db-data:/var/lib/postgresql/data
       - ./apps/api/docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
